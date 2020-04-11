@@ -11,6 +11,13 @@ EMPTY = -1
 PIECE = -2
 GROUND = -3
 
+DEATH_REWARD = -16
+
+AGGREGATE_HEIGHT = -0.51
+COMPLETE_LINES = 0.76
+HOLES = -0.35
+BUMPINESS = -0.18
+
 # ARS rotation
 SHAPES = {
     0: [
@@ -57,11 +64,12 @@ for n in range(4):
 
 ##### game methods
 def reset():
-    return add_new_piece(Board(
+    board = add_new_piece(Board(
         area=np.ones((ROW, COL)) * EMPTY
     ))
+    return board, process_state(board)
 
-def drop(old_board, _):
+def drop(old_board, _=None):
     board = old_board.clone()
     while board.valid:
         board = move(board, (1,0))
@@ -148,12 +156,50 @@ def step(old_board, action):
 
     if not board.valid:
         board = make(board, GROUND)
+
         board, complete_lines = clear_complete_lines(board)
         aggregate_height, bumpiness, holes = analyze(board)
-        print("AGG_HEIGHT %d, BUMPY %d, HOLES %d" % (aggregate_height, bumpiness, holes))
+
         board = add_new_piece(board)
 
-    return board, reward, board.done, ""
+        new_score = complete_lines * COMPLETE_LINES \
+                + aggregate_height * AGGREGATE_HEIGHT \
+                + bumpiness * BUMPINESS \
+                + holes * HOLES
+
+        reward = new_score - board.prev_score
+        board.prev_score = new_score
+
+    if board.done:
+        reward += DEATH_REWARD
+
+    return board, reward, board.done, process_state(board)
+
+def analyze_score(board, before_drop):
+    state = np.zeros(4)
+    before_agg, before_bum, before_holes = before_drop
+    board, complete_lines = clear_complete_lines(board)
+    aggregate_height, bumpiness, holes = analyze(board)
+    return (before_agg - aggregate_height) / 6, \
+           (before_bum - bumpiness) / 8, \
+           (before_holes - holes) / 4, \
+           complete_lines / 4
+
+def process_state(old_board):
+    state = np.zeros(16)
+
+    before_drop = analyze(old_board)
+    
+    board = drop(old_board)
+    board = make(board, GROUND)
+
+    state[:] = [analyze_score(rotate(board, False), before_drop), \
+                analyze_score(rotate(board, True), before_drop), \
+                analyze_score(move(board, (0,-1)), before_drop), \
+                analyze_score(move(board, (0,1)), before_drop)]
+
+    return state
+    #print("beforeAGG_HEIGHT %d, BUMPY %d, HOLES %d" % (before_agg, before_bum, before_holes))
 
 def analyze(board):
     aggregate_height = 0
@@ -182,6 +228,7 @@ class Board:
     area: np.ndarray
     piece_idx: int = 0
     rotation_idx: int = 0
+    prev_score: int = 0
     rel_x: int = 0
     rel_y: int = 0
     done: bool = False
@@ -191,6 +238,7 @@ class Board:
             area=self.area.copy(),
             piece_idx=self.piece_idx,
             rotation_idx=self.rotation_idx,
+            prev_score=self.prev_score,
             rel_x=self.rel_x,
             rel_y=self.rel_y,
             done=self.done,

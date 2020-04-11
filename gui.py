@@ -5,7 +5,6 @@ import random
 import pickle
 import environment as env
 from tkinter import Frame, Canvas, Tk
-from agent import Agent, load_agent
 import sys
 from pyscreenshot import grab
 import pickle
@@ -43,15 +42,8 @@ class GameGrid():
         }
         self.root.bind("<Key>", self.key_down)
 
-        if 3 == len(sys.argv):
-            history = load_agent(sys.argv[1])
-            self.processed = []
-            for state,_,_,_ in history:
-                self.processed.append(self.process_channels(state))
-            threading.Thread(target=self.watch_history).start()
-        else:
-            #threading.Thread(target=self.watch_play).start()
-            threading.Thread(target=self.play).start()
+        #threading.Thread(target=self.watch_play).start()
+        threading.Thread(target=self.play).start()
         self.root.mainloop()
 
     def watch_play(self):
