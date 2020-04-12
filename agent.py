@@ -29,15 +29,14 @@ class Network(nn.Module):
 
 class Agent():
     
-    def __init__(self, num_actions, eps_start=1.0, eps_end=0.05, eps_decay=0.996,
-                            gamma=0.992, memory_capacity=20000, batch_size=64, alpha=1e-3, tau=1e-3):
+    def __init__(self, eps_start=1.0, eps_end=0, eps_decay=0.996,
+                            gamma=0.99, memory_capacity=30000, batch_size=512, alpha=1e-3, tau=1e-3):
         self.local_Q = Network().to(device)
         self.target_Q = Network().to(device)
         self.target_Q.load_state_dict(self.local_Q.state_dict())
         self.target_Q.eval()
         self.optimizer = optim.Adam(self.local_Q.parameters(), lr=alpha)
-        self.loss = nn.SmoothL1Loss()
-        self.num_actions = num_actions
+        self.loss = nn.MSELoss()
         self.eps_start = eps_start
         self.eps_end = eps_end
         self.eps_decay = eps_decay
@@ -60,12 +59,12 @@ class Agent():
                 obs = torch.tensor(states, device=device, dtype=torch.float)
                 action = torch.argmax(self.local_Q(obs)).item()
         else:
-            action = np.random.randint(self.num_actions)
+            action = np.random.randint(len(states))
         return action
 
     def learn(self):
         ln = len(self.replay_memory.memory)
-        if self.batch_size >= ln:# or ln < self.replay_memory.capacity:
+        if self.batch_size >= ln:
             return
         
         state_batch, reward_batch, next_state_batch, done_batch = \

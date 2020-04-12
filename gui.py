@@ -4,9 +4,9 @@ import numpy as np
 import random
 import pickle
 import environment as env
+from agent import load_agent
 from tkinter import Frame, Canvas, Tk
 import sys
-from pyscreenshot import grab
 import pickle
 
 COLORS = {
@@ -41,39 +41,38 @@ class GameGrid():
             37: 0 # Do nothing
         }
         self.root.bind("<Key>", self.key_down)
+        self.agent = load_agent(sys.argv[1])
 
-        #threading.Thread(target=self.watch_play).start()
-        threading.Thread(target=self.play).start()
+        threading.Thread(target=self.watch_play).start()
+        #threading.Thread(target=self.play).start()
         self.root.mainloop()
 
     def watch_play(self):
+        self.agent.eps_start = 0
         while True:
-            duration = 0
             done = False
-            board = env.reset()
+            ep_duration = 0
+            board, state = env.reset()
             while not done:
-                action = np.random.randint(6)
-                board, reward, done, next_piece = env.step(board, action)
+                next_actions, next_states = zip(*env.process_state(board).items())
+                action = self.agent.select_action(next_states)
+                next_state = next_states[action]
+                board, reward, done = env.step(board, next_actions[action])
+                ep_duration += 1
                 self.board = board.area
                 self.update()
-                duration += 1
+                
                 time.sleep(self.speed)
 
-    def update(self, rel_x=0, rel_y=0):
+    def update(self):
         for i in range(env.ROW):
             for j in range(env.COL):
                 rect = self.game_area[i][j]
                 curr = int(self.board[i, j])
                 color = COLORS[curr]
-                if rel_x == i and rel_y == j:
-                    color = "#000"
+                if i == 3:
+                    color="#aaa"
                 self.game.itemconfig(rect, fill=color)
-
-    def watch_history(self):
-        for state in self.processed:
-            self.board = state
-            self.update()
-            time.sleep(self.speed)
 
     def init(self):
         def draw(x1, y1, sz, color, func):
@@ -88,26 +87,27 @@ class GameGrid():
                 row.append(rect)
             self.game_area.append(row)
 
+
     def key_down(self, event):
-        if event.keycode == 24: # q
-            self.quit = True
-        if event.keycode in self.commands:
-            self.action = self.commands[event.keycode]
-            self.pause = False
+        self.pause = False
     
     def play(self):
         self.action = 0
         while True:
             done = False
-            board, states = env.reset()
+            board, state = env.reset()
             while not done:
                 if not self.pause:
                     self.pause = True
-                    env.process_state(board)
-                    board, reward, done = env.step(board, self.action)
+                    states = env.process_state(board)
+                    next_state = states[action]
+                    print(state)
+                    print(next_state)
+                    
+                    board, reward, done = env.step(board, action)
                     self.action = 0
                     self.board = board.area
-                    self.update(board.rel_x, board.rel_y)
+                    self.update()
 
 if __name__ == "__main__":
     GameGrid()
