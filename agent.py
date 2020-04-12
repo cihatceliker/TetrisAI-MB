@@ -7,7 +7,7 @@ import math
 import pickle
 import sys
 
-device = torch.device("cuda")
+device = torch.device("cpu")
 
 
 class Network(nn.Module):

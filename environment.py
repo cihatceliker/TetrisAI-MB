@@ -62,6 +62,30 @@ for n in range(4):
     for shape in SHAPES[4]:
         ALL_SHAPES[n].append(rotate_n_times(shape, n))
 
+SHAPE_RANGES = {
+    0: [
+        [(1,9)]*4
+    ],
+    1: [
+        [(2,8), (0,9)]*2
+    ],
+    2: [
+        [(1,8), (1,9)]*2
+    ],
+    3: [
+        [(1,8), (0,8)]*2
+    ],
+    4: [
+        [(1,8), (0,8), (1,8), (1,9)]
+    ],
+    5: [
+        [(1,8), (0,8), (1,8), (1,9)]
+    ],
+    6: [
+        [(1,8), (0,8), (1,8), (1,9)]
+    ],
+}
+
 ##### game methods
 def reset():
     board = add_new_piece(Board(
@@ -85,6 +109,7 @@ def rotate(old_board, _=None):
         board = make(board, PIECE)
     else:
         board.rotation_idx = old_board.rotation_idx
+        board.valid = False
     return board
 
 def is_available(board, to=(0,0)):
@@ -175,6 +200,10 @@ def process_state(old_board):
             drop_analyze(rotate(old_board, False), *before_drop), \
             drop_analyze(rotate(old_board, True), *before_drop)]
 
+
+
+
+
 def clear_complete_lines(old_board):
     board = old_board.clone()
     idxs = []
@@ -207,7 +236,6 @@ def analyze(board):
             if piece_found and board.area[i,j] == EMPTY:
                 holes += 1
     return aggregate_height, bumpiness, holes
-
 
 @dataclass
 class Board:
