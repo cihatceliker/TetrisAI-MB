@@ -17,7 +17,7 @@ COLORS = {
 
 class GameGrid():
 
-    def __init__(self, speed=0.02, size=720):
+    def __init__(self, speed=0.01, size=720):
         width = size / 2
         height = size
         self.root = Tk()
@@ -31,20 +31,8 @@ class GameGrid():
         self.image_counter = 0
         self.init()
         self.root.title('Tetris')
-
-        self.commands = {
-            113: 1, # Left
-            114: 2, # Right
-            53: 3, # Z
-            52: 3, # X
-            65: 5, # Drop
-            37: 0 # Do nothing
-        }
-        self.root.bind("<Key>", self.key_down)
         self.agent = load_agent(sys.argv[1])
-
         threading.Thread(target=self.watch_play).start()
-        #threading.Thread(target=self.play).start()
         self.root.mainloop()
 
     def watch_play(self):
@@ -56,13 +44,30 @@ class GameGrid():
             while not done:
                 next_actions, next_states = zip(*env.process_state(board).items())
                 action = self.agent.select_action(next_states)
+
+                ep_duration += self.drop_piece(next_actions[action], board)
+
                 next_state = next_states[action]
                 board, reward, done = env.step(board, next_actions[action])
-                ep_duration += 1
-                self.board = board.area
-                self.update()
                 
+                self.board = board.area
+                self.update()                
                 time.sleep(self.speed)
+            print(ep_duration)
+
+    def drop_piece(self, actions, old_board):
+        board = old_board.clone()
+        board.rel_x, board.rel_y, board.rotation_idx = 1, *actions
+        count = 0
+        while env.is_available(board, (1,0)):
+            board = env.make(board, env.EMPTY)
+            board.rel_x += 1
+            board = env.make(board, env.PIECE)
+            self.board = board.area
+            self.update()
+            time.sleep(self.speed)
+            count += 1
+        return count
 
     def update(self):
         for i in range(env.ROW):
@@ -70,8 +75,6 @@ class GameGrid():
                 rect = self.game_area[i][j]
                 curr = int(self.board[i, j])
                 color = COLORS[curr]
-                if i == 3:
-                    color="#aaa"
                 self.game.itemconfig(rect, fill=color)
 
     def init(self):
@@ -87,27 +90,6 @@ class GameGrid():
                 row.append(rect)
             self.game_area.append(row)
 
-
-    def key_down(self, event):
-        self.pause = False
-    
-    def play(self):
-        self.action = 0
-        while True:
-            done = False
-            board, state = env.reset()
-            while not done:
-                if not self.pause:
-                    self.pause = True
-                    states = env.process_state(board)
-                    next_state = states[action]
-                    print(state)
-                    print(next_state)
-                    
-                    board, reward, done = env.step(board, action)
-                    self.action = 0
-                    self.board = board.area
-                    self.update()
 
 if __name__ == "__main__":
     GameGrid()

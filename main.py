@@ -8,10 +8,10 @@ import sys
 
 num_iter = 50000000
 print_interval = 10
-save_interval = 100
+save_interval = 10
 
 agent = Agent() if len(sys.argv) == 1 else load_agent(sys.argv[1])
-#agent.optimizer = torch.optim.Adam(agent.local_Q.parameters(), 5e-4)
+#agent.optimizer = torch.optim.Adam(agent.network.parameters(), 1e-3)
 print(agent.optimizer)
 
 def count(tetrises):
@@ -51,4 +51,5 @@ for episode in range(agent.start, num_iter):
         
         print("Episode: %d - Avg. Duration: %d - Avg. Score: %3.3f - %s" % (episode, avg_duration, avg_score, count(all_tetrises)))
         all_tetrises = []
+        
         

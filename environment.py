@@ -55,8 +55,6 @@ for n in range(4):
     for shape in SHAPES[4]:
         ALL_SHAPES[n].append(rotate_n_times(shape, n))
 
-##### game logic #####
-
 def reset():
     board = Board(
         area=np.ones((ROW, COL)) * EMPTY,
@@ -109,7 +107,7 @@ def step(old_board, action):
     if complete_lines != 0:
         board.tetrises.append(complete_lines)        
 
-    if GROUND in board.area[3]:
+    if GROUND in board.area[2]:
         reward -= 2
         board.done = True
 
@@ -191,7 +189,7 @@ class Board:
 def drop_analyze(old_board, drop_point, rotation_idx, before_agg, before_bum, before_holes):
     board, complete_lines, aggregate_height, bumpiness, holes \
         = add_drop_analyze(old_board, drop_point, rotation_idx, old_board.piece_idx)
-    return aggregate_height-before_agg, \
-           bumpiness-before_bum, \
+    return complete_lines, \
            holes-before_holes, \
-           complete_lines
+           bumpiness-before_bum, \
+           aggregate_height-before_agg

@@ -7,40 +7,20 @@ import math
 import pickle
 import sys
 
-device = torch.device("cpu")
-
-
-class Network(nn.Module):
-
-    def __init__(self):
-        super(Network, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(4, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
-        )
-        self.to(device)
-
-    def forward(self, state):
-        return self.model(state)
-
+device = torch.device("cuda")
 
 class Agent():
     
-    def __init__(self, eps_start=1.0, eps_end=0, eps_decay=0.996,
-                            gamma=0.99, memory_capacity=30000, batch_size=512, alpha=1e-3, tau=1e-3):
-        self.local_Q = Network().to(device)
-        self.target_Q = Network().to(device)
-        self.target_Q.load_state_dict(self.local_Q.state_dict())
-        self.target_Q.eval()
-        self.optimizer = optim.Adam(self.local_Q.parameters(), lr=alpha)
+    def __init__(self, eps_start=1.0, eps_decay=0.996, gamma=0.99, 
+                memory_capacity=20000, batch_size=512, alpha=7e-3):
+        self.network = nn.Sequential(
+            nn.Linear(4, 64), nn.Tanh(),
+            nn.Linear(64, 1)
+        ).to(device)
+        self.optimizer = optim.Adam(self.network.parameters(), lr=alpha)
         self.loss = nn.MSELoss()
         self.eps_start = eps_start
-        self.eps_end = eps_end
         self.eps_decay = eps_decay
-        self.tau = tau
         self.gamma = gamma
         self.batch_size = batch_size
         self.replay_memory = ReplayMemory(memory_capacity)
@@ -57,7 +37,7 @@ class Agent():
         if np.random.random() > self.eps_start:
             with torch.no_grad():
                 obs = torch.tensor(states, device=device, dtype=torch.float)
-                action = torch.argmax(self.local_Q(obs)).item()
+                action = torch.argmax(self.network(obs)).item()
         else:
             action = np.random.randint(len(states))
         return action
@@ -70,23 +50,16 @@ class Agent():
         state_batch, reward_batch, next_state_batch, done_batch = \
             self.replay_memory.sample(self.batch_size)
         
-        max_actions = torch.argmax(self.local_Q(next_state_batch), dim=1)
-        prediction = self.local_Q(state_batch)[:,0]
-
+        prediction = self.network(state_batch)[:,0]
         with torch.no_grad():
-            evaluated = self.target_Q(next_state_batch)[:,0]
+            evaluated = self.network(next_state_batch)[:,0]
             evaluated = reward_batch + self.gamma * evaluated * done_batch
-
         self.optimizer.zero_grad()
         self.loss(prediction, evaluated).to(device).backward()
         self.optimizer.step()
 
-        for target_param, local_param in zip(self.target_Q.parameters(), self.local_Q.parameters()):
-            target_param.data.copy_(self.tau * local_param.data + (1 - self.tau) * target_param.data)
+        self.eps_start = max(0, self.eps_decay * self.eps_start)
         
-        self.eps_start = max(self.eps_end, self.eps_decay * self.eps_start)
-        
-
     def save(self, filename):
         pickle_out = open(filename+".tt","wb")
         pickle.dump(self, pickle_out)
