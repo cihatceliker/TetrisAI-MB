@@ -11,7 +11,7 @@ EMPTY = -1
 PIECE = -2
 GROUND = -3
 
-DEATH_REWARD = -16
+DEATH_REWARD = -4
 
 AGGREGATE_HEIGHT = -0.51
 COMPLETE_LINES = 0.76
@@ -67,7 +67,7 @@ def reset():
     board = add_new_piece(Board(
         area=np.ones((ROW, COL)) * EMPTY
     ))
-    return board, process_state(board)
+    return board, drop_analyze(board, 0, 0, 0)
 
 def drop(old_board, _=None):
     board = old_board.clone()
@@ -75,25 +75,13 @@ def drop(old_board, _=None):
         board = move(board, (1,0))
     return board
 
-def clear_complete_lines(old_board):
+def rotate(old_board, _=None):
     board = old_board.clone()
-    idxs = []
-    for i in range(ROW-1, 0, -1):
-        if not EMPTY in board.area[i,:]:
-            idxs.append(i)
-    complete_lines = len(idxs)
-    for idx in reversed(idxs):
-        board.area[1:idx+1,:] = board.area[0:idx,:]
-    return board, complete_lines
-
-def rotate(old_board, clockwise):
-    board = old_board.clone()
-    to = 1 if clockwise else -1
-    board.rotation_idx = (board.rotation_idx + to) % 4
+    board.rotation_idx = (board.rotation_idx + 1) % 4
     if is_available(board):
         board.rotation_idx = old_board.rotation_idx
         board = make(board, EMPTY)
-        board.rotation_idx = (board.rotation_idx + to) % 4
+        board.rotation_idx = (board.rotation_idx + 1) % 4
         board = make(board, PIECE)
     else:
         board.rotation_idx = old_board.rotation_idx
@@ -114,11 +102,11 @@ def make(old_board, num):
         board.area[board.rel_x+i,board.rel_y+j] = num
     return board
 
-def add_new_piece(old_board, drop_point=(1,5)):
+def add_new_piece(old_board, drop_point=(1,5), rotation_idx=0):
     board = old_board.clone()
     board.rel_x, board.rel_y = drop_point
     board.piece_idx = np.random.randint(7)
-    board.rotation_idx = 0
+    board.rotation_idx = rotation_idx
     if not is_available(board):
         board.done = True
     else:
@@ -138,22 +126,18 @@ def move(old_board, to):
     return board
 
 actions = {
-    0: (lambda x, y: x, None),
+    0: (drop, None),
     1: (move, (0,-1)),
     2: (move, (0,1)),
-    3: (rotate, False),
-    4: (rotate, True),
-    5: (drop, None)
+    3: (rotate, None)
 }
 
 def step(old_board, action):
     board = old_board.clone()
+    
     board = actions[action][0](board, actions[action][1])
 
     reward = 0
-    board.valid = True
-    board = move(board, (1,0))
-
     if not board.valid:
         board = make(board, GROUND)
 
@@ -166,18 +150,16 @@ def step(old_board, action):
                 + aggregate_height * AGGREGATE_HEIGHT \
                 + bumpiness * BUMPINESS \
                 + holes * HOLES
-
         reward = new_score - board.prev_score
         board.prev_score = new_score
-
     if board.done:
         reward += DEATH_REWARD
+        
+    return board, reward, board.done
 
-    return board, reward, board.done, process_state(board)
-
-def analyze_score(board, before_drop):
-    state = np.zeros(4)
-    before_agg, before_bum, before_holes = before_drop
+def drop_analyze(old_board, before_agg, before_bum, before_holes):
+    board = drop(old_board)
+    board = make(board, GROUND)
     board, complete_lines = clear_complete_lines(board)
     aggregate_height, bumpiness, holes = analyze(board)
     return (before_agg - aggregate_height) / 6, \
@@ -186,20 +168,23 @@ def analyze_score(board, before_drop):
            complete_lines / 4
 
 def process_state(old_board):
-    state = np.zeros(16)
-
     before_drop = analyze(old_board)
-    
-    board = drop(old_board)
-    board = make(board, GROUND)
+    return [drop_analyze(old_board, *before_drop), \
+            drop_analyze(move(old_board, (0,-1)), *before_drop), \
+            drop_analyze(move(old_board, (0,1)), *before_drop), \
+            drop_analyze(rotate(old_board, False), *before_drop), \
+            drop_analyze(rotate(old_board, True), *before_drop)]
 
-    state[:] = [analyze_score(rotate(board, False), before_drop), \
-                analyze_score(rotate(board, True), before_drop), \
-                analyze_score(move(board, (0,-1)), before_drop), \
-                analyze_score(move(board, (0,1)), before_drop)]
-
-    return state
-    #print("beforeAGG_HEIGHT %d, BUMPY %d, HOLES %d" % (before_agg, before_bum, before_holes))
+def clear_complete_lines(old_board):
+    board = old_board.clone()
+    idxs = []
+    for i in range(ROW-1, 0, -1):
+        if not EMPTY in board.area[i,:]:
+            idxs.append(i)
+    complete_lines = len(idxs)
+    for idx in reversed(idxs):
+        board.area[1:idx+1,:] = board.area[0:idx,:]
+    return board, complete_lines
 
 def analyze(board):
     aggregate_height = 0
@@ -222,6 +207,7 @@ def analyze(board):
             if piece_found and board.area[i,j] == EMPTY:
                 holes += 1
     return aggregate_height, bumpiness, holes
+
 
 @dataclass
 class Board:

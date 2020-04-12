@@ -12,14 +12,14 @@ device = torch.device("cuda")
 
 class Network(nn.Module):
 
-    def __init__(self, n_actions):
+    def __init__(self):
         super(Network, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(16, 64),
+            nn.Linear(4, 64),
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, n_actions)
+            nn.Linear(64, 1)
         )
         self.to(device)
 
@@ -30,9 +30,9 @@ class Network(nn.Module):
 class Agent():
     
     def __init__(self, num_actions, eps_start=1.0, eps_end=0.05, eps_decay=0.996,
-                            gamma=0.992, memory_capacity=20000, batch_size=128, alpha=1e-3, tau=1e-3):
-        self.local_Q = Network(num_actions).to(device)
-        self.target_Q = Network(num_actions).to(device)
+                            gamma=0.992, memory_capacity=20000, batch_size=64, alpha=1e-3, tau=1e-3):
+        self.local_Q = Network().to(device)
+        self.target_Q = Network().to(device)
         self.target_Q.load_state_dict(self.local_Q.state_dict())
         self.target_Q.eval()
         self.optimizer = optim.Adam(self.local_Q.parameters(), lr=alpha)
@@ -54,10 +54,10 @@ class Agent():
     def store_experience(self, *args):
         self.replay_memory.push(args)
 
-    def select_action(self, state):
+    def select_action(self, states):
         if np.random.random() > self.eps_start:
             with torch.no_grad():
-                obs = torch.tensor(state, device=device, dtype=torch.float).unsqueeze(0)
+                obs = torch.tensor(states, device=device, dtype=torch.float)
                 action = torch.argmax(self.local_Q(obs)).item()
         else:
             action = np.random.randint(self.num_actions)
@@ -68,14 +68,14 @@ class Agent():
         if self.batch_size >= ln:# or ln < self.replay_memory.capacity:
             return
         
-        state_batch, action_batch, reward_batch, next_state_batch, done_batch = \
+        state_batch, reward_batch, next_state_batch, done_batch = \
             self.replay_memory.sample(self.batch_size)
         
         max_actions = torch.argmax(self.local_Q(next_state_batch), dim=1)
-        prediction = self.local_Q(state_batch)[self.indexes,action_batch]
+        prediction = self.local_Q(state_batch)[:,0]
 
         with torch.no_grad():
-            evaluated = self.target_Q(next_state_batch)[self.indexes,max_actions]
+            evaluated = self.target_Q(next_state_batch)[:,0]
             evaluated = reward_batch + self.gamma * evaluated * done_batch
 
         self.optimizer.zero_grad()
@@ -100,6 +100,7 @@ def load_agent(filename):
     pickle_in.close()
     return agent
 
+
 class ReplayMemory:
 
     def __init__(self, capacity):
@@ -119,10 +120,9 @@ class ReplayMemory:
         batch = list(zip(*batch))
 
         state_batch = torch.tensor(batch[0], device=device, dtype=torch.float)
-        action_batch = torch.tensor(batch[1], device=device)
-        reward_batch = torch.tensor(batch[2], device=device)
-        next_state_batch = torch.tensor(batch[3], device=device, dtype=torch.float)
-        done_batch = torch.tensor(batch[4], device=device)
+        reward_batch = torch.tensor(batch[1], device=device)
+        next_state_batch = torch.tensor(batch[2], device=device, dtype=torch.float)
+        done_batch = torch.tensor(batch[3], device=device)
 
-        return state_batch, action_batch, reward_batch, next_state_batch, done_batch
+        return state_batch, reward_batch, next_state_batch, done_batch
 

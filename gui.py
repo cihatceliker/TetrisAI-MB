@@ -36,7 +36,7 @@ class GameGrid():
             113: 1, # Left
             114: 2, # Right
             53: 3, # Z
-            52: 4, # X
+            52: 3, # X
             65: 5, # Drop
             37: 0 # Do nothing
         }
@@ -59,12 +59,14 @@ class GameGrid():
                 duration += 1
                 time.sleep(self.speed)
 
-    def update(self):
+    def update(self, rel_x=0, rel_y=0):
         for i in range(env.ROW):
             for j in range(env.COL):
                 rect = self.game_area[i][j]
                 curr = int(self.board[i, j])
                 color = COLORS[curr]
+                if rel_x == i and rel_y == j:
+                    color = "#000"
                 self.game.itemconfig(rect, fill=color)
 
     def watch_history(self):
@@ -97,14 +99,15 @@ class GameGrid():
         self.action = 0
         while True:
             done = False
-            board = env.reset()
+            board, states = env.reset()
             while not done:
                 if not self.pause:
                     self.pause = True
-                    board, reward, done, _ = env.step(board, self.action)
+                    env.process_state(board)
+                    board, reward, done = env.step(board, self.action)
                     self.action = 0
                     self.board = board.area
-                    self.update()
+                    self.update(board.rel_x, board.rel_y)
 
 if __name__ == "__main__":
     GameGrid()

@@ -10,9 +10,9 @@ num_iter = 50000000
 print_interval = 10
 save_interval = 200
 
-agent = Agent(num_actions=6) if len(sys.argv) == 1 else load_agent(sys.argv[1])  
-
+agent = Agent(num_actions=5) if len(sys.argv) == 1 else load_agent(sys.argv[1])
 #agent.optimizer = torch.optim.Adam(agent.local_Q.parameters(), 5e-4)
+
 print(agent.optimizer)
 
 for episode in range(agent.start, num_iter):
@@ -21,15 +21,15 @@ for episode in range(agent.start, num_iter):
     ep_duration = 0
     board, state = env.reset()
     while not done:
-        action = agent.select_action(state)
-        board, reward, done, next_state = env.step(board, action)
-        agent.store_experience(state, action, reward, next_state, 1-done)
-        state = next_state
+        next_states = env.process_state(board)
+        action = agent.select_action(next_states)
+        board, reward, done = env.step(board, action)
+        agent.store_experience(state, reward, next_states[action], 1-done)
+        state = next_states[action]
         score += reward
         ep_duration += 1
-    
-    agent.learn()
 
+    agent.learn()
     agent.episodes.append(episode)
     agent.scores.append(score)
     agent.durations.append(ep_duration)
