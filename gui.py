@@ -31,8 +31,11 @@ class GameGrid():
         self.image_counter = 0
         self.init()
         self.root.title('Tetris')
-        self.agent = load_agent(sys.argv[1])
-        threading.Thread(target=self.watch_play).start()
+        self.history = load_agent(sys.argv[1])
+        
+        #self.agent = load_agent(sys.argv[1])
+        #threading.Thread(target=self.watch_play).start()
+        threading.Thread(target=self.watch_history).start()
         self.root.mainloop()
 
     def watch_play(self):
@@ -68,6 +71,12 @@ class GameGrid():
             time.sleep(self.speed)
             count += 1
         return count
+
+    def watch_history(self):
+        for state in self.history:
+            self.board = state
+            self.update()
+            time.sleep(self.speed)
 
     def update(self):
         for i in range(env.ROW):
