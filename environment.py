@@ -4,9 +4,16 @@ from dataclasses import dataclass
 ROW = 20
 COL = 10
 
+# numbers are not important. these 3 are just to indicate the type of a tile
 EMPTY = -1
 PIECE = -2
 GROUND = -3
+
+# weights of the features
+AGG_HEIGHT = -0.51
+COMPLETE_LINE = 0.76
+HOLES = -0.35
+BUMPINESS = -0.18
 
 # ARS rotation
 SHAPES = {
@@ -54,71 +61,31 @@ for n in range(4):
 
 
 def reset():
-    board = Board(
+    return Board(
         area=np.ones((ROW, COL)) * EMPTY,
         piece_idx=np.random.randint(7)
     )
-    board.tetrises = []
-    return board, (0,)*4
 
-def drop(old_board):
+# given the (column, rotation) double as action,
+# put the current piece on that column with the given rotation
+# then drop that piece and return the resulting board.
+def step(old_board, drop_col, rot_idx):
     board = old_board.clone()
-    board = make(board, EMPTY)
-    while is_available(board, (1,0)):
-        board.rel_x += 1
-    board = make(board, GROUND)
-    return board
-
-def is_available(board, to=(0,0)):
-    for i, j in ALL_SHAPES[board.rotation_idx][board.piece_idx]:
-        x, y = i+to[0]+board.rel_x, j+to[1]+board.rel_y
-        if x >= ROW or y < 0 or y >= COL:
-            return False
-        if board.area[x, y] == GROUND:
-            return False
-    return True
-
-def make(old_board, num):
-    board = old_board.clone()
-    for i, j in ALL_SHAPES[board.rotation_idx][board.piece_idx]:
-        board.area[board.rel_x+i,board.rel_y+j] = num
-    return board
-
-# add piece, drop the piece and analyze what happens
-def add_drop_analyze(old_board, drop_point, rotation_idx, piece_idx):
-    board = old_board.clone()
-    board.rel_x, board.rel_y = drop_point
-    board.piece_idx = piece_idx
-    board.rotation_idx = rotation_idx
-    board = drop(board)
-    board, complete_lines = clear_complete_lines(board)
-    aggregate_height, bumpiness, holes = analyze(board)
-    return board, complete_lines, aggregate_height, bumpiness, holes
-
-# given the action, act and analyze
-def step(old_board, action):
-    board = old_board.clone()
-    drop_col, rot_idx = action
-    board, complete_lines, aggregate_height, bumpiness, holes \
-            = add_drop_analyze(board, (1, drop_col), rot_idx, board.piece_idx)
+    board, _, _, _, _ = add_drop_analyze(board, (1, drop_col), rot_idx, board.piece_idx)
     
-    reward = 1+(complete_lines ** 2) * 10
-    
-    if complete_lines != 0:
-        board.tetrises.append(complete_lines)        
-
     if GROUND in board.area[2]:
-        reward -= 2
         board.done = True
 
     board.piece_idx = np.random.randint(7)
-    return board, reward, board.done
+    return board, board.done
 
-# given the board, find all possible configurations for (column, rotation) doubles.
-# using dict is for not adding the same configuration twice
+# analyze every possible combination of (column, rotation) doubles
+# and return the best double.
 def process_state(old_board):
     before_drop = analyze(old_board)
-    states = {}
+    best_rot = None
+    best_col = None
+    best_score = -float("inf")
     board = old_board.clone()
     for i in range(4):
         for j in range(COL):
@@ -126,12 +93,16 @@ def process_state(old_board):
             board.rel_x = 1
             board.rel_y = j
             if is_available(board):
-                states[(j,i)] = drop_analyze(board, (1,j), i, *before_drop)
+                score = drop_analyze(board, (1, j), i, *before_drop)
+                if score > best_score:
+                    best_score = score
+                    best_rot = i
+                    best_col = j
         if i == 0 and old_board.piece_idx == 0:
             break
         if i == 1 and old_board.piece_idx < 4:
             break
-    return states
+    return best_col, best_rot
 
 def clear_complete_lines(old_board):
     board = old_board.clone()
@@ -167,6 +138,52 @@ def analyze(board):
                 holes += 1
     return aggregate_height, bumpiness, holes
 
+# returns the change of the features after making the given action
+def drop_analyze(old_board, drop_point, rotation_idx, before_agg, before_bum, before_holes):
+    board, complete_lines, aggregate_height, bumpiness, holes \
+        = add_drop_analyze(old_board, drop_point, rotation_idx, old_board.piece_idx)
+    return complete_lines * COMPLETE_LINE + \
+           (holes-before_holes) * HOLES + \
+           (bumpiness-before_bum) * BUMPINESS + \
+           (aggregate_height-before_agg) * AGG_HEIGHT
+
+# add and drop the piece, analyze what happens
+def add_drop_analyze(old_board, drop_point, rotation_idx, piece_idx):
+    board = old_board.clone()
+    board.rel_x, board.rel_y = drop_point
+    board.piece_idx = piece_idx
+    board.rotation_idx = rotation_idx
+    board = drop(board)
+    board, complete_lines = clear_complete_lines(board)
+    aggregate_height, bumpiness, holes = analyze(board)
+    return board, complete_lines, aggregate_height, bumpiness, holes
+
+
+# the rest is for the general game logic
+
+def drop(old_board):
+    board = old_board.clone()
+    board = make(board, EMPTY)
+    while is_available(board, (1,0)):
+        board.rel_x += 1
+    board = make(board, GROUND)
+    return board
+
+def is_available(board, to=(0,0)):
+    for i, j in ALL_SHAPES[board.rotation_idx][board.piece_idx]:
+        x, y = i+to[0]+board.rel_x, j+to[1]+board.rel_y
+        if x >= ROW or y < 0 or y >= COL:
+            return False
+        if board.area[x, y] == GROUND:
+            return False
+    return True
+
+def make(old_board, num):
+    board = old_board.clone()
+    for i, j in ALL_SHAPES[board.rotation_idx][board.piece_idx]:
+        board.area[board.rel_x+i,board.rel_y+j] = num
+    return board
+
 @dataclass
 class Board:
     area: np.ndarray
@@ -177,7 +194,7 @@ class Board:
     done: bool = False
     valid: bool = True
     def clone(self):
-        board = Board(
+        return Board(
             area=self.area.copy(),
             piece_idx=self.piece_idx,
             rotation_idx=self.rotation_idx,
@@ -186,14 +203,3 @@ class Board:
             done=self.done,
             valid=True
         )
-        board.tetrises = self.tetrises
-        return board
-
-# returns the change of the features after making the given action
-def drop_analyze(old_board, drop_point, rotation_idx, before_agg, before_bum, before_holes):
-    board, complete_lines, aggregate_height, bumpiness, holes \
-        = add_drop_analyze(old_board, drop_point, rotation_idx, old_board.piece_idx)
-    return complete_lines, \
-           holes-before_holes, \
-           bumpiness-before_bum, \
-           aggregate_height-before_agg

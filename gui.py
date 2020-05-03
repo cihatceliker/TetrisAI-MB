@@ -1,8 +1,5 @@
 import time
-import threading
 import environment as env
-import sys
-from agent import load_agent
 from tkinter import Frame, Canvas, Tk
 
 COLORS = {
@@ -23,53 +20,36 @@ class GameGrid():
         self.speed = speed
         self.size = size
         self.rectangle_size = size/env.ROW
-        self.pause = False
-        self.image_counter = 0
         self.init()
-        self.root.title('Tetris')
-
-        if len(sys.argv) != 2:
-            print("you need to specify a model")
-            sys.exit()
-        
-        self.agent = load_agent(sys.argv[1])
-        self.agent.eps_start = 0
-        threading.Thread(target=self.watch_play).start()
-        self.root.mainloop()
+        self.watch_play()
 
     def watch_play(self):
-        # standard game loop
-        # see main.py for more detail
         while True:
             done = False
-            ep_duration = 0
-            board, state = env.reset()
+            board = env.reset()
             while not done:
-                next_actions, next_states = zip(*env.process_state(board).items())
-                action = self.agent.select_action(next_states)
-                ep_duration += self.drop_piece(next_actions[action], board)
-                next_state = next_states[action]
-                board, reward, done = env.step(board, next_actions[action])
+                # find the best action
+                action = env.process_state(board)
+                self.drop_piece(action, board)
+                board, done = env.step(board, *action)
+                
                 self.board = board.area
                 self.update()
+                self.root.update()
                 time.sleep(self.speed)
-            print(ep_duration)
 
     # this method drops piece a move at a time. just for viewing purposes
-    # returns duration
-    def drop_piece(self, actions, old_board):
+    def drop_piece(self, action, old_board):
         board = old_board.clone()
-        board.rel_x, board.rel_y, board.rotation_idx = 1, *actions
-        count = 0
+        board.rel_x, board.rel_y, board.rotation_idx = 1, *action
         while env.is_available(board, (1,0)):
             board = env.make(board, env.EMPTY)
             board.rel_x += 1
             board = env.make(board, env.PIECE)
             self.board = board.area
             self.update()
+            self.root.update()
             time.sleep(self.speed)
-            count += 1
-        return count
 
     # update colors
     def update(self):
