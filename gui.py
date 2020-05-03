@@ -1,13 +1,9 @@
 import time
 import threading
-import numpy as np
-import random
-import pickle
 import environment as env
+import sys
 from agent import load_agent
 from tkinter import Frame, Canvas, Tk
-import sys
-import pickle
 
 COLORS = {
     env.EMPTY: "#fff",
@@ -31,15 +27,19 @@ class GameGrid():
         self.image_counter = 0
         self.init()
         self.root.title('Tetris')
-        self.history = load_agent(sys.argv[1])
+
+        if len(sys.argv) != 2:
+            print("you need to specify a model")
+            sys.exit()
         
-        #self.agent = load_agent(sys.argv[1])
-        #threading.Thread(target=self.watch_play).start()
-        threading.Thread(target=self.watch_history).start()
+        self.agent = load_agent(sys.argv[1])
+        self.agent.eps_start = 0
+        threading.Thread(target=self.watch_play).start()
         self.root.mainloop()
 
     def watch_play(self):
-        self.agent.eps_start = 0
+        # standard game loop
+        # see main.py for more detail
         while True:
             done = False
             ep_duration = 0
@@ -47,17 +47,16 @@ class GameGrid():
             while not done:
                 next_actions, next_states = zip(*env.process_state(board).items())
                 action = self.agent.select_action(next_states)
-
                 ep_duration += self.drop_piece(next_actions[action], board)
-
                 next_state = next_states[action]
                 board, reward, done = env.step(board, next_actions[action])
-                
                 self.board = board.area
-                self.update()                
+                self.update()
                 time.sleep(self.speed)
             print(ep_duration)
 
+    # this method drops piece a move at a time. just for viewing purposes
+    # returns duration
     def drop_piece(self, actions, old_board):
         board = old_board.clone()
         board.rel_x, board.rel_y, board.rotation_idx = 1, *actions
@@ -72,12 +71,7 @@ class GameGrid():
             count += 1
         return count
 
-    def watch_history(self):
-        for state in self.history:
-            self.board = state
-            self.update()
-            time.sleep(self.speed)
-
+    # update colors
     def update(self):
         for i in range(env.ROW):
             for j in range(env.COL):
@@ -86,6 +80,7 @@ class GameGrid():
                 color = COLORS[curr]
                 self.game.itemconfig(rect, fill=color)
 
+    # init colors
     def init(self):
         def draw(x1, y1, sz, color, func):
             return func(x1, y1, x1+sz, y1+sz, fill=color, width=0)

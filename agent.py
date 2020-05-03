@@ -3,11 +3,13 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import random
-import math
 import pickle
-import sys
 
-device = torch.device("cuda")
+device = "cpu"
+#device = "cuda" if torch.cuda.is_available() else "cpu"
+print("runs on %s." % device)
+device = torch.device(device)
+
 
 class Agent():
     
@@ -43,8 +45,7 @@ class Agent():
         return action
 
     def learn(self):
-        ln = len(self.replay_memory.memory)
-        if self.batch_size >= ln:
+        if self.batch_size >= len(self.replay_memory.memory):
             return
         
         state_batch, reward_batch, next_state_batch, done_batch = \
@@ -54,6 +55,7 @@ class Agent():
         with torch.no_grad():
             evaluated = self.network(next_state_batch)[:,0]
             evaluated = reward_batch + self.gamma * evaluated * done_batch
+
         self.optimizer.zero_grad()
         self.loss(prediction, evaluated).to(device).backward()
         self.optimizer.step()

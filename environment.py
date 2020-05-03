@@ -1,7 +1,4 @@
-import os
 import numpy as np
-import random
-import sys
 from dataclasses import dataclass
 
 ROW = 20
@@ -55,6 +52,7 @@ for n in range(4):
     for shape in SHAPES[4]:
         ALL_SHAPES[n].append(rotate_n_times(shape, n))
 
+
 def reset():
     board = Board(
         area=np.ones((ROW, COL)) * EMPTY,
@@ -86,6 +84,7 @@ def make(old_board, num):
         board.area[board.rel_x+i,board.rel_y+j] = num
     return board
 
+# add piece, drop the piece and analyze what happens
 def add_drop_analyze(old_board, drop_point, rotation_idx, piece_idx):
     board = old_board.clone()
     board.rel_x, board.rel_y = drop_point
@@ -96,6 +95,7 @@ def add_drop_analyze(old_board, drop_point, rotation_idx, piece_idx):
     aggregate_height, bumpiness, holes = analyze(board)
     return board, complete_lines, aggregate_height, bumpiness, holes
 
+# given the action, act and analyze
 def step(old_board, action):
     board = old_board.clone()
     drop_col, rot_idx = action
@@ -114,6 +114,8 @@ def step(old_board, action):
     board.piece_idx = np.random.randint(7)
     return board, reward, board.done
 
+# given the board, find all possible configurations for (column, rotation) doubles.
+# using dict is for not adding the same configuration twice
 def process_state(old_board):
     before_drop = analyze(old_board)
     states = {}
@@ -142,6 +144,7 @@ def clear_complete_lines(old_board):
         board.area[1:idx+1,:] = board.area[0:idx,:]
     return board, complete_lines
 
+# analyze the board, return the features
 def analyze(board):
     aggregate_height = 0
     holes = 0
@@ -186,6 +189,7 @@ class Board:
         board.tetrises = self.tetrises
         return board
 
+# returns the change of the features after making the given action
 def drop_analyze(old_board, drop_point, rotation_idx, before_agg, before_bum, before_holes):
     board, complete_lines, aggregate_height, bumpiness, holes \
         = add_drop_analyze(old_board, drop_point, rotation_idx, old_board.piece_idx)
