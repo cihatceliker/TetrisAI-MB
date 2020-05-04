@@ -24,21 +24,21 @@ class GameGrid():
         self.watch_play()
 
     def watch_play(self):
-        while True:
-            done = False
-            board = env.reset()
-            while not done:
-                # find the best action
-                action = env.process_state(board)
-                self.drop_piece(action, board)
-                board, done = env.step(board, *action)
-                
-                self.board = board.area
-                self.update()
-                self.root.update()
-                time.sleep(self.speed)
+        done = False
+        board = env.reset()
+        while not done:
+            # finds the best action
+            action = env.process_state(board)
+            self.drop_piece(action, board)
+            board, done = env.step(board, *action)
 
-    # this method drops piece a move at a time. just for viewing purposes
+            self.board = board.area
+            self.update()
+            self.root.update()
+            time.sleep(self.speed)
+
+    # this method drops piece a move at a time. its just to see the 
+    # piece slide down instead of directly dropping it. just for viewing purposes
     def drop_piece(self, action, old_board):
         board = old_board.clone()
         board.rel_x, board.rel_y, board.rotation_idx = 1, *action

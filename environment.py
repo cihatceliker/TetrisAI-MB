@@ -4,16 +4,16 @@ from dataclasses import dataclass
 ROW = 20
 COL = 10
 
-# numbers are not important. these 3 are just to indicate the type of a tile
+# these 3 are just to indicate the type of a tile
 EMPTY = -1
 PIECE = -2
 GROUND = -3
 
 # weights of the features
-AGG_HEIGHT = -0.51
-COMPLETE_LINE = 0.76
-HOLES = -0.35
-BUMPINESS = -0.18
+COMPLETE_LINE = 7
+AGG_HEIGHT = -5
+HOLES = -3
+BUMPINESS = -2
 
 # ARS rotation
 SHAPES = {
@@ -138,7 +138,7 @@ def analyze(board):
                 holes += 1
     return aggregate_height, bumpiness, holes
 
-# returns the change of the features after making the given action
+# returns the weighted average on the change of the features after making the given action
 def drop_analyze(old_board, drop_point, rotation_idx, before_agg, before_bum, before_holes):
     board, complete_lines, aggregate_height, bumpiness, holes \
         = add_drop_analyze(old_board, drop_point, rotation_idx, old_board.piece_idx)
